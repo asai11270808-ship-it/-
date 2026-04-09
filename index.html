@@ -3,23 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>漢字レーンゲーム - Hybrid Edition</title>
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="mobile-web-app-capable" content="yes">
-    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>漢字レーンゲーム - Professional Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: white; font-family: 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
-        #info-panel { position: absolute; top: 10px; left: 10px; z-index: 100; background: rgba(255, 255, 255, 0.9); padding: 8px 15px; border-radius: 8px; font-weight: bold; border: 2px solid #333; pointer-events: none; min-width: 180px; }
-        #game-container { position: relative; flex-grow: 1; display: flex; background-color: white; border-bottom: 4px solid #000; overflow: hidden; }
-        .lane { flex: 1; height: 100%; border-left: 2px solid #f8f8f8; position: relative; }
         
-        .kanji { 
-            position: absolute; width: 100%; text-align: center; font-size: 4.2rem; font-weight: 900; left: 0; top: 0;
-            user-select: none; text-shadow: 2px 2px 0px white, -2px -2px 0px white, 2px -2px 0px white, -2px 2px 0px white; 
-            display: inline-block; pointer-events: none; will-change: transform; transform: translateY(-150px); 
+        /* ① スコアとレベルを最上段に一列表示 */
+        #header-panel { 
+            height: 50px; 
+            background: #111; 
+            color: white; 
+            display: flex; 
+            justify-content: space-around; 
+            align-items: center; 
+            font-weight: bold; 
+            font-size: 1.1rem;
+            z-index: 500;
         }
-        .kanji.black { color: #111; }
+
+        #game-container { position: relative; flex-grow: 1; display: flex; background-color: white; border-bottom: 4px solid #000; overflow: hidden; }
+        .lane { flex: 1; height: 100%; border-left: 2px solid #f0f0f0; position: relative; }
+        
+        /* ③ 文字サイズを大きく、縁取りを強化 */
+        .kanji { 
+            position: absolute; 
+            width: 100%; 
+            text-align: center; 
+            font-size: 5.5rem; /* サイズアップ */
+            font-weight: 900; 
+            left: 0; 
+            top: 0;
+            user-select: none; 
+            /* 縁取りを太くしてクッキリさせる */
+            text-shadow: 
+                3px 3px 0px white, -3px -3px 0px white, 
+                3px -3px 0px white, -3px 3px 0px white,
+                0px 3px 0px white, 0px -3px 0px white,
+                3px 0px 0px white, -3px 0px 0px white; 
+            display: inline-block; 
+            pointer-events: none; 
+            will-change: transform; 
+            transform: translateY(-200px); 
+        }
+        .kanji.black { color: #000; }
         .kanji.blue { color: #004dff; }
         
         .fly-left { transform: translate(-300px, 200px) rotate(-180deg) scale(0) !important; opacity: 0; transition: transform 0.25s ease-out, opacity 0.2s; }
@@ -34,7 +62,6 @@
         .menu-btn { margin: 8px; padding: 15px 40px; font-size: 1.5rem; color: white; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; width: 260px; text-align: center; user-select: none; }
         #start-button { background: #ff4757; }
         #train-button { background: #3498db; }
-        
         .sub-btn-container { display: flex; gap: 10px; margin-top: 20px; }
         .sub-btn { background: #2f3542; border: 1px solid #57606f; color: #aaa; font-size: 0.8rem; padding: 10px 15px; border-radius: 5px; cursor: pointer; }
         
@@ -43,9 +70,7 @@
         .lv-btn { width: 50px; height: 50px; background: #3498db; color: white; display: flex; justify-content: center; align-items: center; font-weight: bold; border-radius: 8px; cursor: pointer; border: none; font-size: 1.2rem; }
         
         #best-score-display { margin-top: 20px; font-size: 1.2rem; color: #ffbc00; font-weight: bold; }
-        #training-label { display: none; color: #3498db; font-size: 0.8rem; }
-        #condition-label { font-size: 0.9rem; color: #666; }
-        #timer-val { color: #ff4757; font-size: 1.1rem; }
+        #training-label { color: #3498db; font-size: 0.8rem; margin-left: 5px; }
     </style>
 </head>
 <body>
@@ -67,10 +92,9 @@
     <div class="sub-btn" style="margin-top: 30px;" onclick="closeLevelSelect()">BACK</div>
 </div>
 
-<div id="info-panel">
-    SCORE: <span id="score-val">0</span> | LV: <span id="level-val">1</span><br>
-    <span id="condition-label">NEXT: <span id="timer-val">10</span></span>
-    <span id="training-label">[TRAINING]</span>
+<div id="header-panel">
+    <div>SCORE: <span id="score-val">0</span></div>
+    <div>LV: <span id="level-val">1</span><span id="training-label" style="display:none;">(T)</span></div>
 </div>
 
 <div id="game-container">
@@ -92,7 +116,7 @@
     let isTrainingMode = false;
     let kanjis = [];
     let score = 0;
-    let lvScore = 0; // 現在のレベルでのクリア数
+    let lvScore = 0; 
     let level = 1;
     let fallSpeed = 3.5; 
     let levelTimer = 10.0;
@@ -105,7 +129,6 @@
         f.G5, 0, f.E5, 0, f.C5, 0, f.D5, 0, f.E5, f.F4, f.G5, 0, f.C5, 0, 0, 0
     ];
     const bassPattern = [f.C4, f.G4, f.C4, f.G4, f.F4, f.C4, f.F4, f.C4, f.E4, f.B4, f.E4, f.B4, f.G4, f.D4, f.G4, f.D4];
-
     let bgmStep = 0;
 
     function updateBestDisplay() {
@@ -156,18 +179,7 @@
         if (lv <= 1) fallSpeed = 3.5;
         else if (lv === 2) fallSpeed = 4.1;
         else if (lv >= 3 && lv <= 9) fallSpeed = 5.2; 
-        else fallSpeed = 6.0; // Lv.10 速度下方修正
-    }
-
-    function updateConditionDisplay() {
-        const label = document.getElementById('timer-val');
-        if (level <= 2) {
-            label.innerText = (10 - lvScore) + " Left";
-        } else if (level < 10) {
-            label.innerText = Math.max(0, levelTimer).toFixed(1) + "s";
-        } else {
-            document.getElementById('condition-label').innerText = "MAX LEVEL";
-        }
+        else fallSpeed = 6.0; 
     }
 
     function initGame(mode, startLv = 1) {
@@ -192,7 +204,6 @@
             playBGMLoop();
             spawnKanji();
             startTimeUpdate();
-            updateConditionDisplay();
             requestAnimationFrame(update);
         });
     }
@@ -205,7 +216,6 @@
                 doLevelUp();
             }
         }
-        updateConditionDisplay();
         setTimeout(startTimeUpdate, 100);
     }
 
@@ -258,11 +268,19 @@
         div.className = `kanji ${isBlue ? 'blue' : 'black'}`;
         div.innerText = type;
         lanes[laneIndex].appendChild(div);
-        kanjis.push({ element: div, lane: laneIndex, type: type, isBlue: isBlue, y: -150, cleared: false });
+        kanjis.push({ element: div, lane: laneIndex, type: type, isBlue: isBlue, y: -200, cleared: false });
 
         const rates = [1600, 1400, 1000, 800, 600, 450, 350, 280, 200, 180];
         let delay = rates[level - 1] || 180;
-        if (level >= 5 && Math.random() < 0.15) delay *= 0.5;
+        
+        // ② 各文字の最小間隔を広げる調整
+        // 高レベルでも最低250ms〜の間隔を保証するようにし、視認性を確保
+        let minInterval = 250; 
+        if (level >= 9) minInterval = 180; // Lv.9以上のみ極狭を許可
+        
+        delay = Math.max(delay, minInterval);
+
+        if (level >= 5 && Math.random() < 0.15) delay *= 0.8; // 連打感は残しつつ少し緩和
 
         setTimeout(spawnKanji, delay);
     }
@@ -306,12 +324,7 @@
             score++;
             lvScore++;
             document.getElementById('score-val').innerText = score;
-            
-            // Lv.1, 2 は回数でレベルアップ
-            if (level <= 2 && lvScore >= 10) {
-                doLevelUp();
-            }
-            updateConditionDisplay();
+            if (level <= 2 && lvScore >= 10) { doLevelUp(); }
         } else if (!isDemoMode) { gameOver(); }
     }
 
