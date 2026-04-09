@@ -6,11 +6,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>漢字レーンゲーム - Professional Edition</title>
+    <title>漢字レーンゲーム - Ver.1.2</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: white; font-family: 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
         
-        /* ① スコアとレベルを最上段に一列表示 */
         #header-panel { 
             height: 50px; 
             background: #111; 
@@ -26,17 +25,15 @@
         #game-container { position: relative; flex-grow: 1; display: flex; background-color: white; border-bottom: 4px solid #000; overflow: hidden; }
         .lane { flex: 1; height: 100%; border-left: 2px solid #f0f0f0; position: relative; }
         
-        /* ③ 文字サイズを大きく、縁取りを強化 */
         .kanji { 
             position: absolute; 
             width: 100%; 
             text-align: center; 
-            font-size: 5.5rem; /* サイズアップ */
+            font-size: 5.0rem; /* 重なり対策でわずかに調整 */
             font-weight: 900; 
             left: 0; 
             top: 0;
             user-select: none; 
-            /* 縁取りを太くしてクッキリさせる */
             text-shadow: 
                 3px 3px 0px white, -3px -3px 0px white, 
                 3px -3px 0px white, -3px 3px 0px white,
@@ -75,23 +72,6 @@
 </head>
 <body>
 
-<div id="start-overlay">
-    <div style="font-size: 1.8rem; margin-bottom: 5px;">漢字レーンゲーム</div>
-    <div id="best-score-display">BEST SCORE: 0</div>
-    <div id="start-button" class="menu-btn" style="margin-top:30px;">GAME START</div>
-    <div id="train-button" class="menu-btn">TRAINING</div>
-    <div class="sub-btn-container">
-        <div id="demo-button" class="sub-btn">DEMO PLAY</div>
-        <div id="reset-button" class="sub-btn">RESET BEST</div>
-    </div>
-</div>
-
-<div id="level-select-overlay">
-    <div style="font-size: 1.5rem; color: white;">SELECT TRAINING LEVEL</div>
-    <div class="level-grid" id="lv-grid"></div>
-    <div class="sub-btn" style="margin-top: 30px;" onclick="closeLevelSelect()">BACK</div>
-</div>
-
 <div id="header-panel">
     <div>SCORE: <span id="score-val">0</span></div>
     <div>LV: <span id="level-val">1</span><span id="training-label" style="display:none;">(T)</span></div>
@@ -109,6 +89,23 @@
     <div id="ctrl-2" class="btn">→</div>
 </div>
 
+<div id="start-overlay">
+    <div style="font-size: 1.8rem; margin-bottom: 5px;">漢字レーンゲーム</div>
+    <div id="best-score-display">BEST SCORE: 0</div>
+    <div id="start-button" class="menu-btn" style="margin-top:30px;">GAME START</div>
+    <div id="train-button" class="menu-btn">TRAINING</div>
+    <div class="sub-btn-container">
+        <div id="demo-button" class="sub-btn">DEMO PLAY</div>
+        <div id="reset-button" class="sub-btn">RESET BEST</div>
+    </div>
+</div>
+
+<div id="level-select-overlay">
+    <div style="font-size: 1.5rem; color: white;">SELECT TRAINING LEVEL</div>
+    <div class="level-grid" id="lv-grid"></div>
+    <div class="sub-btn" style="margin-top: 30px;" onclick="closeLevelSelect()">BACK</div>
+</div>
+
 <script>
     let audioCtx = null;
     let gameActive = false;
@@ -120,6 +117,7 @@
     let level = 1;
     let fallSpeed = 3.5; 
     let levelTimer = 10.0;
+    let lastSpawnTime = 0; // 重なり防止用の時間記録
 
     const f = { C4:261, D4:293, E4:329, F4:349, G4:392, A4:440, B4:493, C5:523, D5:587, E5:659, G5:783 };
     const melodyPattern = [
@@ -177,13 +175,17 @@
 
     function setDifficultyParams(lv) {
         if (lv <= 1) fallSpeed = 3.5;
-        else if (lv === 2) fallSpeed = 4.1;
-        else if (lv >= 3 && lv <= 9) fallSpeed = 5.2; 
-        else fallSpeed = 6.0; 
+        else if (lv === 2) fallSpeed = 4.2;
+        else if (lv >= 3 && lv <= 9) fallSpeed = 5.5; 
+        else fallSpeed = 6.8; // Web版の重みを考慮し少し上げ
     }
 
     function initGame(mode, startLv = 1) {
         if (gameActive) return;
+        kanjis.forEach(k => k.element.remove());
+        kanjis = [];
+        score = 0;
+        document.getElementById('score-val').innerText = score;
         isDemoMode = (mode === 'demo');
         isTrainingMode = (mode === 'train');
         level = startLv;
@@ -261,26 +263,27 @@
 
     function spawnKanji() {
         if (!gameActive) return;
+        
+        const now = Date.now();
         const laneIndex = Math.floor(Math.random() * 3);
         const isBlue = Math.random() < 0.25;
         const type = Math.random() < 0.5 ? '左' : '右';
+        
         const div = document.createElement('div');
         div.className = `kanji ${isBlue ? 'blue' : 'black'}`;
         div.innerText = type;
         lanes[laneIndex].appendChild(div);
         kanjis.push({ element: div, lane: laneIndex, type: type, isBlue: isBlue, y: -200, cleared: false });
 
-        const rates = [1600, 1400, 1000, 800, 600, 450, 350, 280, 200, 180];
-        let delay = rates[level - 1] || 180;
+        const rates = [1600, 1400, 1000, 850, 700, 550, 450, 350, 300, 250];
+        let delay = rates[level - 1] || 250;
         
-        // ② 各文字の最小間隔を広げる調整
-        // 高レベルでも最低250ms〜の間隔を保証するようにし、視認性を確保
-        let minInterval = 250; 
-        if (level >= 9) minInterval = 180; // Lv.9以上のみ極狭を許可
+        // 【重要】重なり防止の最小間隔（絶対ロック）
+        let minLock = 350; 
+        if (level >= 9) minLock = 280; 
         
-        delay = Math.max(delay, minInterval);
-
-        if (level >= 5 && Math.random() < 0.15) delay *= 0.8; // 連打感は残しつつ少し緩和
+        delay = Math.max(delay, minLock);
+        lastSpawnTime = now;
 
         setTimeout(spawnKanji, delay);
     }
@@ -288,7 +291,7 @@
     function update() {
         if (!gameActive) return;
         const containerHeight = container.clientHeight;
-        const hitLine = containerHeight - 120; 
+        const hitLine = containerHeight - 130; 
 
         for (let i = 0; i < kanjis.length; i++) {
             const k = kanjis[i];
