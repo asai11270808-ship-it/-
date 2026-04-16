@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>漢字レーンゲーム - Stable Edition v1.3c</title>
+    <title>漢字レーンゲーム - Stable Edition v1.3d</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: white; font-family: 'Helvetica Neue', Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
         #header-panel { height: 50px; background: #111; color: white; display: flex; justify-content: space-around; align-items: center; font-weight: bold; font-size: 1.1rem; z-index: 500; }
@@ -85,6 +85,7 @@
     let level = 1;
     let baseSpeed = 250; 
     let lastFrameTime = 0;
+    let levelTimer = 10.0; // レベルアップ用の残り時間
 
     const f = { C4:261, D4:293, E4:329, F4:349, G4:392, A4:440, B4:493, C5:523, D5:587, E5:659, G5:783 };
     const melodyPattern = [f.C5, 0, f.G4, 0, f.E4, 0, f.G4, 0, f.A4, f.B4, f.C5, 0, f.G4, 0, 0, 0, f.E5, f.D5, f.C5, 0, f.G4, 0, f.A4, 0, f.C5, 0, f.D5, 0, f.E5, 0, 0, 0, f.A4, 0, f.C5, 0, f.E5, 0, f.D5, 0, f.C5, 0, f.A4, 0, f.G4, 0, 0, 0, f.G5, 0, f.E5, 0, f.C5, 0, f.D5, 0, f.E5, f.F4, f.G5, 0, f.C5, 0, 0, 0];
@@ -139,6 +140,7 @@
         isTrainingMode = (mode === 'train');
         level = startLv;
         lvScore = 0;
+        levelTimer = 10.0; // タイマー初期化
         setDifficultyParams(level);
         
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -148,14 +150,36 @@
         document.getElementById('training-label').style.display = isTrainingMode ? 'inline' : 'none';
         
         gameActive = true;
-        lastFrameTime = 0; // update内でperformance.now()を取得させるために0に
+        lastFrameTime = 0;
         audioCtx.resume().then(() => {
             playTone(523, 'square', 0.1, 0.15);
             bgmStep = 0;
             playBGMLoop();
             spawnKanji();
+            startTimeUpdate(); // タイマー開始
             requestAnimationFrame(update);
         });
+    }
+
+    // Lv.3以降の時間によるレベルアップ管理
+    function startTimeUpdate() {
+        if (!gameActive) return;
+        if (level >= 3 && level < 10 && !isTrainingMode) {
+            levelTimer -= 0.1;
+            if (levelTimer <= 0) {
+                doLevelUp();
+            }
+        }
+        setTimeout(startTimeUpdate, 100);
+    }
+
+    function doLevelUp() {
+        level++;
+        lvScore = 0;
+        levelTimer = 10.0;
+        setDifficultyParams(level);
+        playTone(523, 'square', 0.1, 0.15);
+        document.getElementById('level-val').innerText = level;
     }
 
     function spawnKanji() {
@@ -180,17 +204,10 @@
 
     function update(currentTime) {
         if (!gameActive) return;
-        
-        if (!lastFrameTime) {
-            lastFrameTime = currentTime;
-            requestAnimationFrame(update);
-            return;
-        }
+        if (!lastFrameTime) { lastFrameTime = currentTime; requestAnimationFrame(update); return; }
 
         const deltaTime = (currentTime - lastFrameTime) / 1000; 
         lastFrameTime = currentTime;
-
-        // deltaTimeが異常な場合は補正
         const safeDelta = Math.min(deltaTime, 0.1);
 
         const containerHeight = container.clientHeight;
@@ -199,7 +216,6 @@
         for (let i = 0; i < kanjis.length; i++) {
             const k = kanjis[i];
             if (k.cleared) continue;
-            
             k.y += baseSpeed * safeDelta;
             k.element.style.transform = `translateY(${k.y}px)`;
 
@@ -209,10 +225,7 @@
                 btns[targetBtn].classList.add('active-demo');
                 setTimeout(() => btns[targetBtn].classList.remove('active-demo'), 50);
             }
-            if (k.y > containerHeight - 20) {
-                gameOver();
-                return;
-            }
+            if (k.y > containerHeight - 20) { gameOver(); return; }
         }
         requestAnimationFrame(update);
     }
@@ -226,6 +239,7 @@
         }
         if (!target) return;
         let isCorrect = (target.isBlue && target.lane === btnIndex) || (!target.isBlue && target.type === '左' && btnIndex === 0) || (!target.isBlue && target.type === '右' && btnIndex === 2);
+        
         if (isCorrect) {
             playTone(880, 'triangle', 0.08, 0.12);
             target.cleared = true;
@@ -234,11 +248,10 @@
             score++;
             lvScore++;
             document.getElementById('score-val').innerText = score;
-            if (level <= 2 && lvScore >= 10) {
-                level++; lvScore = 0;
-                setDifficultyParams(level);
-                playTone(523, 'square', 0.1, 0.15);
-                document.getElementById('level-val').innerText = level;
+            
+            // Lv.1, Lv.2のスコアによるレベルアップ
+            if (level <= 2 && lvScore >= 10 && !isTrainingMode) {
+                doLevelUp();
             }
         } else if (!isDemoMode) {
             gameOver();
@@ -252,13 +265,10 @@
             let currentBest = localStorage.getItem('kanjiGameBestScore') || 0;
             if (score > currentBest) localStorage.setItem('kanjiGameBestScore', score);
         }
-        setTimeout(() => { 
-            alert("GAME OVER\nSCORE: " + score); 
-            location.reload(); 
-        }, 150);
+        setTimeout(() => { alert("GAME OVER\nSCORE: " + score); location.reload(); }, 150);
     }
 
-    // イベントリスナーの登録
+    // イベント設定
     document.getElementById('start-button').onclick = () => initGame('normal');
     document.getElementById('demo-button').onclick = () => initGame('demo');
     document.getElementById('reset-button').onclick = () => {
